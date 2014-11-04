@@ -1,0 +1,12 @@
+[root]
+name = "repoman"
+version = "0.0.1"
+dependencies = [
+ "inotify 0.0.1 (git+https://github.com/hannobraun/inotify-rs)",
+]
+
+[[package]]
+name = "inotify"
+version = "0.0.1"
+source = "git+https://github.com/hannobraun/inotify-rs#b283d53af1cadf5a166729383ded7249c7cbbf5a"
+
