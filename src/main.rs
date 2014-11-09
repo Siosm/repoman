@@ -11,13 +11,12 @@ pub mod package;
 
 fn main() {
     let repo_name = "siosm-aur";
-    let db_filename = "siosm-aur.db";
-    let package_suffix_length = ".pkg.tar.xz".len();
-    let signature_suffix_length = ".sig".len();
+    // let db_filename = "siosm-aur.db";
 
-    let package_name = "lnav-0.5.1-1-x86_64.pkg.tar.xz";
+    // let mut packages_ready = Vec::new();
+    // let mut signatures_ready = Vec::new();
 
-    let mut files_ready: Vec<String>;
+    println!("Looking for packages in repo {}", repo_name);
 
     let mut handler = INotify::init().unwrap();
     handler.add_watch(&os::getcwd(), inotify::ffi::IN_CLOSE_WRITE).unwrap();
@@ -28,19 +27,16 @@ fn main() {
         spawn(proc () {
             let filename = event.name;
             println!("Handling file: {}", filename);
-            // if filename.as_slice() == db_filename
-            //     || filename.as_slice() == db_filename + ".tar.xz" {
-            //     println!("Ignoring file: {}", filename);
-            //     return;
-            // }
-            // let package_name =
-            //     if filename.slice_from_or_fail(filename.len() - ) {
+            // let package = match from_str::<Package>(filename.as_slice()) {
+            //     None    => return,
+            //     Some(p) => {
+            //         if p.is_signed() {
+            //             signatures_ready.push(p);
+            //         } else {
+            //             packages_ready.push(p);
+            //         }
             //     }
-
-            // for file in files_ready {
-            //     if file == filename {
-            //     }
-            // }
+            // };
         });
     }
 }
