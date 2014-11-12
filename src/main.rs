@@ -13,8 +13,8 @@ fn main() {
     let repo_name = "siosm-aur";
     // let db_filename = "siosm-aur.db";
 
-    // let mut packages_ready = Vec::new();
-    // let mut signatures_ready = Vec::new();
+    let mut packages_ready = Vec::new();
+    let mut signatures_ready = Vec::new();
 
     println!("Looking for packages in repo {}", repo_name);
 
@@ -23,20 +23,17 @@ fn main() {
 
     loop {
         let event = handler.event().unwrap();
-        // println!("{} {}", event.name, event.mask);
-        spawn(proc () {
-            let filename = event.name;
-            println!("Handling file: {}", filename);
-            // let package = match from_str::<Package>(filename.as_slice()) {
-            //     None    => return,
-            //     Some(p) => {
-            //         if p.is_signed() {
-            //             signatures_ready.push(p);
-            //         } else {
-            //             packages_ready.push(p);
-            //         }
-            //     }
-            // };
-        });
+        let filename = event.name;
+        println!("Handling file: {}", filename);
+        match from_str::<Package>(filename.as_slice()) {
+            None    => println!("Uploaded file is not a valid package name!"),
+            Some(p) => {
+                if p.is_signed() {
+                    signatures_ready.push(p);
+                } else {
+                    packages_ready.push(p);
+                }
+            }
+        };
     }
 }
