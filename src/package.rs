@@ -1,4 +1,5 @@
-use std::from_str::FromStr;
+use collections::str::FromStr;
+
 use std::fmt::{Formatter, FormatError, Show};
 use std::option::Option;
 
@@ -12,9 +13,9 @@ pub enum Arch {
 impl Show for Arch {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FormatError> {
         match self {
-            &i686   => write!(f, "i686"),
-            &x86_64 => write!(f, "x86_64"),
-            &any    => write!(f, "any")
+            &Arch::i686   => write!(f, "i686"),
+            &Arch::x86_64 => write!(f, "x86_64"),
+            &Arch::any    => write!(f, "any")
         }
     }
 }
@@ -26,20 +27,34 @@ pub struct Package {
     pkgrel:    uint,
     epoch:     uint,
     arch:      Arch,
+    binary:    bool,
     signature: bool
 }
 
 impl Package {
     pub fn new(pkgname: &str, pkgver: &str, pkgrel: uint, epoch: uint,
-               arch: Arch, signature: bool) -> Package {
+               arch: Arch, binary: bool, signature: bool) -> Package {
         Package {
             pkgname:   String::from_str(pkgname),
             pkgver:    String::from_str(pkgver),
             pkgrel:    pkgrel,
             epoch:     epoch,
             arch:      arch,
+            binary:    binary,
             signature: signature
         }
+    }
+
+    pub fn set_binary(&mut self, value: bool) {
+        self.binary = value;
+    }
+
+    pub fn set_signed(&mut self, value: bool) {
+        self.signature = value;
+    }
+
+    pub fn is_binary(&self) -> bool {
+        self.binary
     }
 
     pub fn is_signed(&self) -> bool {
@@ -49,94 +64,105 @@ impl Package {
 
 impl FromStr for Package {
     fn from_str(s: &str) -> Option<Package> {
-        let mut package = Package::new("", "", 1, 0, x86_64, false);
+        let mut package = Package::new("", "", 1, 0, Arch::x86_64, false, false);
         let mut tmp = s;
 
-        println!("Looking at {}", s);
-        // Looking for signature suffix
+        debug!("{}: looking for signature suffix in {}", s, s);
         if tmp.ends_with(".sig") {
             package.signature = true;
             tmp = tmp.slice_to(s.len() - ".sig".len());
-            println!("Found signature suffix");
+            debug!("{}: found signature suffix", s);
         } else {
-            println!("No signature suffix found!");
+            package.binary = true;
+            debug!("{}: no signature suffix found", s);
         }
 
-        println!("Looking at {}", tmp);
-        // Looking for package prefix
+        debug!("{}: looking for package prefix in {}", s, tmp);
         if tmp.ends_with(".pkg.tar.xz") {
             tmp = tmp.slice_to(tmp.len() - ".pkg.tar.xz".len());
-            println!("Found package suffix");
+            debug!("{}: found package suffix", s);
         } else {
-            println!("No package suffix found!");
+            debug!("{}: no package suffix found", s);
             return None
         }
 
         let vec: Vec<&str> = tmp.rsplitn(3, '-').collect();
         if vec.len() != 4 {
-            println!("Invalid package name format: missing at least one element, only {} found!", vec.len());
+            debug!("{}: invalid package name format: missing at least one \
+                  element, only {} found", s, vec.len());
             return None
         }
+        debug!("{}: found the following fields: {}", s, vec);
 
-        println!("Found the following fields: {}", vec);
-
-        // Looking for architecture
-        println!("Looking for arch in {}", vec[0]);
+        debug!("{}: looking for arch in {}", s, vec[0]);
         package.arch = match vec[0] {
-            "i686"   => i686,
-            "x86_64" => x86_64,
-            "any"    => any,
+            "i686"   => Arch::i686,
+            "x86_64" => Arch::x86_64,
+            "any"    => Arch::any,
             _        => return None
         };
-        println!("Package arch is {}", package.arch);
+        debug!("{}: package arch is {}", s, package.arch);
 
-        // Looking for pkgrel
-        println!("Looking for pkgrel in {}", vec[1]);
+        debug!("{}: looking for pkgrel in {}", s, vec[1]);
         package.pkgrel = match from_str::<uint>(vec[1]) {
-            None    => return None,
+            None    => {
+                debug!("{}: invalid pkgrel: must be a positive integer", s);
+                return None
+            },
             Some(x) => {
                 if x == 0 {
-                    println!("Invalid pkgrel, must be > 0!");
+                    debug!("{}: invalid pkgrel: must be > 0", s);
                     return None
                 } else {
                     x
                 }
             }
         };
-        println!("Package pkgrel is {}", package.pkgrel);
+        debug!("{}: package pkgrel is {}", s, package.pkgrel);
 
-        // Looking for epoch+pkgver
-        println!("Looking for epoch in {}", vec[2]);
+        debug!("{}: looking for 'epoch:pkgver' in {}", s, vec[2]);
         let version: Vec<&str> = vec[2].splitn(2, ':').collect();
         if version.is_empty() {
-            println!("Empty version field!");
+            debug!("{}: empty version field", s);
             return None
         } else if version.len() == 1 {
             package.pkgver = match from_str(vec[2]) {
-                None    => return None,
+                None    => { // FIXME
+                    debug!("{}: invalid pkgver field", s);
+                    return None
+                },
                 Some(s) => s
             };
-            println!("Package version is {}", package.pkgver);
+            debug!("{}: package pkgver is {}", s, package.pkgver);
         } else {
             package.epoch  = match from_str(version[0]) {
-                None    => return None,
+                None    => { // FIXME
+                    debug!("{}: invalid epoch field", s);
+                    return None
+                },
                 Some(x) => x
             };
-            println!("Package epoch is {}", package.epoch);
+            debug!("{}: package epoch is {}", s, package.epoch);
             package.pkgver = match from_str(version[1]) {
-                None    => return None,
+                None    => { // FIXME
+                    debug!("{}: invalid pkgver field", s);
+                    return None
+                },
                 Some(s) => s
             };
-            println!("Package version is {}", package.pkgver);
+            debug!("{}: package pkgver is {}", s, package.pkgver);
         }
 
         // Everything else is the pkgname
-        println!("Looking for name in {}", vec[3]);
+        debug!("{}: looking for pkgname in {}", s, vec[3]);
         package.pkgname = match from_str(vec[3]) {
-            None    => return None,
+            None    => { // FIXME
+                debug!("{}: invalid pkgname field", s);
+                return None
+            },
             Some(s) => s
         };
-        println!("Package name is {}", package.pkgname);
+        debug!("{}: package pkgname is {}", s, package.pkgname);
 
         Some(package)
     }
@@ -167,14 +193,14 @@ impl Show for Package {
 #[test]
 fn package_from_string() {
     let package1: Package = from_str("lnav-0.5.1-1-x86_64.pkg.tar.xz").unwrap();
-    let package2 = Package::new("lnav", "0.5.1", 1, 0, x86_64, false);
+    let package2 = Package::new("lnav", "0.5.1", 1, 0, Arch::x86_64, true, false);
     assert_eq!(package1, package2);
 }
 
 #[test]
 fn package_format() {
     let filename = "lnav-0.5.1-1-x86_64.pkg.tar.xz";
-    let package = Package::new("lnav", "0.5.1", 1, 0, x86_64, false);
+    let package = Package::new("lnav", "0.5.1", 1, 0, Arch::x86_64, true, false);
     assert_eq!(filename, format!("{}", package).as_slice());
 }
 
@@ -191,14 +217,14 @@ fn package_from_string_and_format() {
 #[test]
 fn package_with_epoch_from_string() {
     let package1: Package = from_str("docker-1:1.3.1-1-x86_64.pkg.tar.xz").unwrap();
-    let package2 = Package::new("docker", "1.3.1", 1, 1, x86_64, false);
+    let package2 = Package::new("docker", "1.3.1", 1, 1, Arch::x86_64, true, false);
     assert_eq!(package1, package2);
 }
 
 #[test]
 fn package_with_epoch_format() {
     let filename = "docker-1:1.3.1-1-x86_64.pkg.tar.xz";
-    let package = Package::new("docker", "1.3.1", 1, 1, x86_64, false);
+    let package = Package::new("docker", "1.3.1", 1, 1, Arch::x86_64, true, false);
     assert_eq!(filename, format!("{}", package).as_slice());
 }
 
@@ -215,14 +241,14 @@ fn package_with_epoch_from_string_and_format() {
 #[test]
 fn package_with_epoch_and_sign_from_string() {
     let package1: Package = from_str("docker-1:1.3.1-1-x86_64.pkg.tar.xz.sig").unwrap();
-    let package2 = Package::new("docker", "1.3.1", 1, 1, x86_64, true);
+    let package2 = Package::new("docker", "1.3.1", 1, 1, Arch::x86_64, false, true);
     assert_eq!(package1, package2);
 }
 
 #[test]
 fn package_with_epoch_and_sign_format() {
     let filename = "docker-1:1.3.1-1-x86_64.pkg.tar.xz.sig";
-    let package = Package::new("docker", "1.3.1", 1, 1, x86_64, true);
+    let package = Package::new("docker", "1.3.1", 1, 1, Arch::x86_64, false, true);
     assert_eq!(filename, format!("{}", package).as_slice());
 }
 
@@ -239,14 +265,14 @@ fn package_with_epoch_and_sign_from_string_and_format() {
 #[test]
 fn package_with_epoch_dash_and_sign_from_string() {
     let package1: Package = from_str("docker-test-foo-1:1.3.1-1-x86_64.pkg.tar.xz.sig").unwrap();
-    let package2 = Package::new("docker-test-foo", "1.3.1", 1, 1, x86_64, true);
+    let package2 = Package::new("docker-test-foo", "1.3.1", 1, 1, Arch::x86_64, false, true);
     assert_eq!(package1, package2);
 }
 
 #[test]
 fn package_with_epoch_dash_and_sign_format() {
     let filename = "docker-test-foo-1:1.3.1-1-x86_64.pkg.tar.xz.sig";
-    let package = Package::new("docker-test-foo", "1.3.1", 1, 1, x86_64, true);
+    let package = Package::new("docker-test-foo", "1.3.1", 1, 1, Arch::x86_64, false, true);
     assert_eq!(filename, format!("{}", package).as_slice());
 }
 
